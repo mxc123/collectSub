@@ -1,0 +1,62 @@
+# 工作流的名称，将显示在 GitHub Actions 页面
+name: Auto Update Subscriptions for collectSub
+
+# 触发此工作流的事件
+on:
+  # 1. 允许手动触发：你可以在仓库的 "Actions" 页面点击按钮来运行此工作流，方便测试。
+  workflow_dispatch:
+
+  # 2. 定时任务：使用 CRON 表达式定义运行时间。
+  schedule:
+    # 这里的 '45 2 * * *' 是 UTC 时间。
+    # 它对应北京时间 (UTC+8) 的上午 10:45。
+    - cron: '45 2 * * *'
+
+# 定义工作流中要运行的任务
+jobs:
+  # 任务的唯一 ID，可以自定义
+  update-and-commit:
+    # 指定运行此任务的虚拟机环境，ubuntu-latest 是最常用且推荐的选择
+    runs-on: ubuntu-latest
+
+    # 定义任务的执行步骤
+    steps:
+      # 步骤 1: 检出仓库代码
+      # 作用：将你的 collectSub 仓库中的所有文件（包括 main.py, requirements.txt 等）下载到虚拟机中。
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 步骤 2: 设置 Python 环境
+      # 作用：安装指定版本的 Python，以便后续步骤可以使用。
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10' # 你可以根据需要更改 Python 版本
+
+      # 步骤 3: 安装依赖库
+      # 作用：读取 requirements.txt 文件，并使用 pip 安装所有必需的 Python 库。
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # 步骤 4: 运行主脚本
+      # 作用：执行你的 Python 脚本来抓取和处理订阅链接。
+      - name: Run the update script
+        # 使用 env 将 GitHub 的内置变量传递给脚本，让脚本知道仓库的完整名称
+        env:
+          # ${{ github.repository }} 是一个自动变量，其值就是 "你的用户名/collectSub"
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: python main.py
+
+      # 步骤 5: 提交并推送更改
+      # 作用：检查工作区是否有文件被修改或新增（比如生成的 .txt 和 .yaml 文件），
+      # 如果有，则自动执行 git add, commit, push 操作，将更改保存回你的 collectSub 仓库。
+      - name: Commit and push if there are changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          # 自定义 Git 提交信息
+          commit_message: '自动化: 更新订阅链接'
+          # 设置提交者的身份信息，表明这是由 Action 自动完成的
+          commit_user_name: 'GitHub Actions Bot'
+          commit_user_email: 'actions@github.com'
